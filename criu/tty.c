@@ -76,11 +76,6 @@
 #undef	LOG_PREFIX
 #define LOG_PREFIX "tty: "
 
-struct tty_data_entry {
-	struct list_head		list;
-	TtyDataEntry			*tde;
-};
-
 struct tty_info {
 	struct list_head		list;
 	struct file_desc		d;
@@ -98,7 +93,7 @@ struct tty_info {
 
 	struct tty_info			*ctl_tty;
 	struct tty_info			*link;
-	struct tty_data_entry		*tty_data;
+	TtyDataEntry			*tty_data;
 
 	int				fdstore_id;
 };
@@ -892,7 +887,7 @@ static int restore_tty_params(int fd, struct tty_info *info)
 static void pty_restore_queued_data(struct tty_info *info, int fd)
 {
 	if (info && info->tty_data) {
-		ProtobufCBinaryData bd = info->tty_data->tde->data;
+		ProtobufCBinaryData bd = info->tty_data->data;
 		int retval;
 
 		pr_debug("restore queued data on %#x (%zu bytes)\n",
@@ -1670,29 +1665,29 @@ struct collect_image_info tty_cinfo = {
 
 static int collect_one_tty_data(void *obj, ProtobufCMessage *msg, struct cr_img *i)
 {
-	struct tty_data_entry *tdo = obj;
+	TtyDataEntry *tde;
 	struct tty_info *info;
 
-	tdo->tde = pb_msg(msg, TtyDataEntry);
+	tde = pb_msg(msg, TtyDataEntry);
 	pr_debug("Collected data for id %#x (size %zu bytes)\n",
-		 tdo->tde->tty_id, (size_t)tdo->tde->data.len);
+			tde->tty_id, (size_t)tde->data.len);
 
 	list_for_each_entry(info, &all_ttys, list) {
-		if (tdo->tde->tty_id == info->tie->id) {
-			info->tty_data = tdo;
+		if (tde->tty_id == info->tie->id) {
+			info->tty_data = tde;
 			return 0;
 		}
 	}
 
-	pr_err("No tty found to queued data on id %#x\n", tdo->tde->tty_id);
+	pr_err("No tty found to queued data on id %#x\n", tde->tty_id);
 	return -ENOENT;
 }
 
 struct collect_image_info tty_cdata = {
 	.fd_type	= CR_FD_TTY_DATA,
 	.pb_type	= PB_TTY_DATA,
-	.priv_size	= sizeof(struct tty_data_entry),
 	.collect	= collect_one_tty_data,
+	.flags		= COLLECT_NOFREE,
 };
 
 /* Make sure the ttys we're dumping do belong our process tree */
