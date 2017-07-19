@@ -956,7 +956,7 @@ static int receive_tty(struct tty_info *info, int *new_fd)
 	return 0;
 }
 
-static int pty_open_unpaired_slave(struct file_desc *d, struct tty_info *slave)
+static int pty_open_unpaired_slave(struct tty_info *slave)
 {
 	struct reg_file_info *fake = NULL;
 	int master = -1, ret = -1, fd = -1;
@@ -1189,7 +1189,7 @@ static int tty_open(struct file_desc *d, int *new_fd)
 		return 1;
 
 	if (is_pty(info->driver) && !tty_is_master(info))
-		ret = pty_open_unpaired_slave(d, info);
+		ret = pty_open_unpaired_slave(info);
 	else
 		ret = info->driver->open(info);
 	if (ret < 0)
