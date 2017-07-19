@@ -1144,36 +1144,42 @@ static int open_ext_tty(struct tty_info *info)
 	return fd;
 }
 
-static bool tty_deps_restored(struct tty_info *info)
+static bool check_other_ttys(struct tty_info *me, bool skip_ctty_and_slave)
 {
 	struct list_head *list = &rsti(current)->fds;
 	struct fdinfo_list_entry *fle;
-	struct tty_info *tmp;
 
-	if (info->driver->type == TTY_TYPE__CTTY) {
-		list_for_each_entry(fle, list, ps_list) {
-			if (fle->desc->ops->type != FD_TYPES__TTY || fle->desc == &info->d)
-				continue;
+	list_for_each_entry(fle, list, ps_list) {
+		if (fle->desc->ops->type != FD_TYPES__TTY || fle->desc == &me->d)
+			continue;
 
-			/* ctty needs all others are restored */
-			if (fle->stage != FLE_RESTORED)
-				return false;
-		}
-	} else if (!tty_is_master(info)) {
-		list_for_each_entry(fle, list, ps_list) {
-			if (fle->desc->ops->type != FD_TYPES__TTY || fle->desc == &info->d)
-				continue;
+		if (skip_ctty_and_slave) {
+			struct tty_info *tmp;
+
 			tmp = container_of(fle->desc, struct tty_info, d);
-
-			/* slaves wait for masters except ctty */
 			if (tmp->driver->type == TTY_TYPE__CTTY ||
-			    !tty_is_master(tmp))
+					!tty_is_master(tmp))
 				continue;
-			if (fle->stage != FLE_RESTORED)
-				return false;
 		}
+
+		if (fle->stage != FLE_RESTORED)
+			return false;
 	}
+
 	return true;
+}
+
+static bool tty_deps_restored(struct tty_info *info)
+{
+	if (info->driver->type == TTY_TYPE__CTTY)
+		/* ctty needs all others are restored */
+		return check_other_ttys(info, false);
+	else if (!tty_is_master(info))
+		/* slaves wait for masters except ctty */
+		return check_other_ttys(info, true);
+	else
+		/* others just get restored */
+		return true;
 }
 
 static int tty_open(struct file_desc *d, int *new_fd)
