@@ -184,6 +184,7 @@ static int pty_get_index(struct tty_info *ti)
 }
 
 static int pty_open_ptmx(struct tty_info *info);
+static int pty_open_slave(struct tty_info *slave);
 
 static struct tty_driver ptm_driver = {
 	.type			= TTY_TYPE__PTY,
@@ -258,7 +259,7 @@ static struct tty_driver pts_driver = {
 	.name			= "pts",
 	.fd_get_index		= pts_fd_get_index,
 	.img_get_index		= pty_get_index,
-	.open			= pty_open_ptmx,
+	.open			= pty_open_slave,
 };
 
 struct tty_driver *get_tty_driver(dev_t rdev, dev_t dev)
@@ -956,7 +957,7 @@ static int receive_tty(struct tty_info *info, int *new_fd)
 	return 0;
 }
 
-static int pty_open_unpaired_slave(struct tty_info *slave)
+static int pty_open_slave(struct tty_info *slave)
 {
 	struct reg_file_info *fake = NULL;
 	int master = -1, ret = -1, fd = -1;
@@ -1188,10 +1189,7 @@ static int tty_open(struct file_desc *d, int *new_fd)
 	if (!tty_deps_restored(info))
 		return 1;
 
-	if (is_pty(info->driver) && !tty_is_master(info))
-		ret = pty_open_unpaired_slave(info);
-	else
-		ret = info->driver->open(info);
+	ret = info->driver->open(info);
 	if (ret < 0)
 		return -1;
 	*new_fd = ret;
